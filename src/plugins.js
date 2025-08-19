@@ -57,6 +57,22 @@ function registerPlugins(logger, environmentMetadata, client, plugins) {
 }
 
 /**
+ * Registers plugins for debug override capabilities
+ * @param {{ error: (message: string) => void }} logger - The logger instance
+ * @param {Object} debugOverride - The debug override interface object
+ * @param {Array<{registerDebug?: (debugOverride: object) => void}>} plugins - Array of plugin objects that may implement registerDebug
+ */
+function registerPluginsForDebugOverride(logger, debugOverride, plugins) {
+  plugins.forEach(plugin => {
+    try {
+      plugin.registerDebug?.(debugOverride);
+    } catch (error) {
+      logger.error(`Exception thrown registering debug override with plugin ${getPluginName(logger, plugin)}.`);
+    }
+  });
+}
+
+/**
  * Creates a plugin environment object
  * @param {{userAgent: string, version: string}} platform - The platform object
  * @param {string} env - The environment
@@ -105,5 +121,6 @@ function createPluginEnvironment(platform, env, options) {
 module.exports = {
   getPluginHooks,
   registerPlugins,
+  registerPluginsForDebugOverride,
   createPluginEnvironment,
 };

@@ -18,7 +18,12 @@ const { checkContext, getContextKeys } = require('./context');
 const { InspectorTypes, InspectorManager } = require('./InspectorManager');
 const timedPromise = require('./timedPromise');
 const createHookRunner = require('./HookRunner');
-const { getPluginHooks, registerPlugins, createPluginEnvironment } = require('./plugins');
+const {
+  getPluginHooks,
+  registerPlugins,
+  registerPluginsForDebugOverride,
+  createPluginEnvironment,
+} = require('./plugins');
 const changeEvent = 'change';
 const internalChangeEvent = 'internal-change';
 const highTimeoutThreshold = 5;
@@ -879,6 +884,30 @@ function initialize(env, context, specifiedOptions, platform, extraOptionDefs) {
   };
 
   registerPlugins(logger, pluginEnvironment, client, plugins);
+
+  function setOverride(key, value) {
+    const data = { key, value };
+    const mods = {};
+    const oldFlag = flags[data.key];
+    const newFlag = utils.extend({}, data);
+    delete newFlag['key'];
+    flags[data.key] = newFlag;
+    const newDetail = getFlagDetail(newFlag);
+    if (oldFlag) {
+      mods[data.key] = { previous: oldFlag.value, current: newDetail };
+    } else {
+      mods[data.key] = { current: newDetail };
+    }
+    notifyInspectionFlagChanged(data, newFlag);
+    handleFlagChanges(mods); // don't wait for this Promise to be resolved
+  }
+
+  const debugOverride = {
+    setOverride: setOverride,
+  };
+
+  // Register plugins for debug override capabilities
+  registerPluginsForDebugOverride(logger, debugOverride, plugins);
 
   return {
     client: client, // The client object containing all public methods.
