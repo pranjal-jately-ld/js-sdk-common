@@ -889,21 +889,59 @@ function initialize(env, context, specifiedOptions, platform, extraOptionDefs) {
     const data = { key, value };
     const mods = {};
     const oldFlag = flags[data.key];
+
+    // Check if we're actually changing the value
+    if (oldFlag && oldFlag.value === value) {
+      logger.debug(`setOverride: No change needed for ${key}, value already ${value}`);
+      return;
+    }
+
     const newFlag = utils.extend({}, data);
     delete newFlag['key'];
     flags[data.key] = newFlag;
     const newDetail = getFlagDetail(newFlag);
+
     if (oldFlag) {
       mods[data.key] = { previous: oldFlag.value, current: newDetail };
     } else {
       mods[data.key] = { current: newDetail };
     }
+
     notifyInspectionFlagChanged(data, newFlag);
     handleFlagChanges(mods); // don't wait for this Promise to be resolved
   }
 
+  function removeOverride(key) {
+    if (flags[key]) {
+      const mods = {};
+      const oldFlag = flags[key];
+      if (oldFlag && !oldFlag.deleted) {
+        mods[key] = { previous: oldFlag.value };
+      }
+      flags[key] = { deleted: true };
+      notifyInspectionFlagChanged({ key }, flags[key]);
+      handleFlagChanges(mods); // don't wait for this Promise to be resolved
+    }
+  }
+
+  function clearAllOverrides() {
+    const mods = {};
+    Object.keys(flags).forEach(key => {
+      const oldFlag = flags[key];
+      if (oldFlag && !oldFlag.deleted) {
+        mods[key] = { previous: oldFlag.value };
+      }
+      flags[key] = { deleted: true };
+    });
+    if (Object.keys(mods).length > 0) {
+      handleFlagChanges(mods); // don't wait for this Promise to be resolved
+    }
+  }
+
   const debugOverride = {
     setOverride: setOverride,
+    removeOverride: removeOverride,
+    clearAllOverrides: clearAllOverrides,
   };
 
   // Register plugins for debug override capabilities
