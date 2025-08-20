@@ -113,15 +113,8 @@ function initialize(env, context, specifiedOptions, platform, extraOptionDefs) {
       return result;
     },
 
-    // Do we need this?
     exists(key) {
       return this.get(key) !== null;
-    },
-
-    // Helper to get all keys that have flags (real or override)
-    // Do we need this?
-    getAllKeys() {
-      return new Set([...Object.keys(flags || {}), ...Object.keys(flagOverrides || {})]);
     },
   };
 
@@ -930,14 +923,13 @@ function initialize(env, context, specifiedOptions, platform, extraOptionDefs) {
 
     const newFlag = utils.extend({}, data);
     delete newFlag['key'];
-    flagOverrides[data.key] = newFlag; // Store in overrides, not flags
+    flagOverrides[data.key] = newFlag;
     const newDetail = getFlagDetail(newFlag);
 
     mods[data.key] = { previous: currentValue, current: newDetail };
 
-    // Do we need this?
     notifyInspectionFlagChanged(data, newFlag);
-    handleFlagChanges(mods); // don't wait for this Promise to be resolved
+    handleFlagChanges(mods);
   }
 
   function removeOverride(key) {
@@ -946,12 +938,11 @@ function initialize(env, context, specifiedOptions, platform, extraOptionDefs) {
       const oldOverride = flagOverrides[key];
       const realFlag = flags[key];
 
-      // Always create change event since we're removing an override
       mods[key] = { previous: oldOverride.value, current: realFlag ? getFlagDetail(realFlag) : undefined };
 
-      delete flagOverrides[key]; // Remove the override
+      delete flagOverrides[key];
       notifyInspectionFlagChanged({ key }, realFlag);
-      handleFlagChanges(mods); // don't wait for this Promise to be resolved
+      handleFlagChanges(mods);
     }
   }
 
@@ -964,10 +955,10 @@ function initialize(env, context, specifiedOptions, platform, extraOptionDefs) {
       mods[key] = { previous: oldOverride.value, current: realFlag ? getFlagDetail(realFlag) : undefined };
     });
 
-    flagOverrides = {}; // Clear all overrides
+    flagOverrides = {};
 
     if (Object.keys(mods).length > 0) {
-      handleFlagChanges(mods); // don't wait for this Promise to be resolved
+      handleFlagChanges(mods);
     }
   }
 
