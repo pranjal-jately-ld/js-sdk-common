@@ -89,14 +89,17 @@ function initialize(env, context, specifiedOptions, platform, extraOptionDefs) {
   const flagStore = {
     get(key) {
       // Check overrides first, then real flags
-      const override = flagOverrides && flagOverrides[key];
-      if (override && !override.deleted) {
-        return override;
+      if (
+        flagOverrides &&
+        utils.objectHasOwnProperty(flagOverrides, key) &&
+        flagOverrides[key] &&
+        !flagOverrides[key].deleted
+      ) {
+        return flagOverrides[key];
       }
 
-      const real = flags && flags[key];
-      if (real && !real.deleted) {
-        return real;
+      if (flags && utils.objectHasOwnProperty(flags, key) && flags[key] && !flags[key].deleted) {
+        return flags[key];
       }
 
       return null;
@@ -115,11 +118,13 @@ function initialize(env, context, specifiedOptions, platform, extraOptionDefs) {
       return result;
     },
 
+    // Do we need this?
     exists(key) {
       return this.get(key) !== null;
     },
 
     // Helper to get all keys that have flags (real or override)
+    // Do we need this?
     getAllKeys() {
       return new Set([...Object.keys(flags || {}), ...Object.keys(flagOverrides || {})]);
     },
