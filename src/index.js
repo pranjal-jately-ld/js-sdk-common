@@ -942,7 +942,7 @@ function initialize(env, context, specifiedOptions, platform, extraOptionDefs) {
 
       delete flagOverrides[key];
       notifyInspectionFlagChanged({ key }, realFlag);
-      handleFlagChanges(mods);
+      handleFlagChanges(mods); // don't wait for this Promise to be resolved
     }
   }
 
@@ -958,7 +958,7 @@ function initialize(env, context, specifiedOptions, platform, extraOptionDefs) {
     flagOverrides = {};
 
     if (Object.keys(mods).length > 0) {
-      handleFlagChanges(mods);
+      handleFlagChanges(mods); // don't wait for this Promise to be resolved
     }
   }
 
