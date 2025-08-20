@@ -38,6 +38,7 @@ const highTimeoutThreshold = 5;
 // For definitions of the API in the platform object, see stubPlatform.js in the test code.
 
 function initialize(env, context, specifiedOptions, platform, extraOptionDefs) {
+  console.log('🟢 LOCAL JS-SDK-COMMON v5.7.1 - LINKED VERSION ACTIVE 🟢');
   const logger = createLogger();
   const emitter = EventEmitter(logger);
   const initializationStateTracker = InitializationStateTracker(emitter);
@@ -83,6 +84,47 @@ function initialize(env, context, specifiedOptions, platform, extraOptionDefs) {
 
   let flags = {};
   let flagOverrides = {};
+
+  // Central flag store facade - single source of truth for all flag access
+  const flagStore = {
+    get(key) {
+      // Check overrides first, then real flags
+      const override = flagOverrides && flagOverrides[key];
+      if (override && !override.deleted) {
+        return override;
+      }
+
+      const real = flags && flags[key];
+      if (real && !real.deleted) {
+        return real;
+      }
+
+      return null;
+    },
+
+    getAll() {
+      const allKeys = new Set([...Object.keys(flags || {}), ...Object.keys(flagOverrides || {})]);
+
+      const result = {};
+      allKeys.forEach(key => {
+        const flag = this.get(key);
+        if (flag) {
+          result[key] = flag;
+        }
+      });
+      return result;
+    },
+
+    exists(key) {
+      return this.get(key) !== null;
+    },
+
+    // Helper to get all keys that have flags (real or override)
+    getAllKeys() {
+      return new Set([...Object.keys(flags || {}), ...Object.keys(flagOverrides || {})]);
+    },
+  };
+
   let useLocalStorage;
   let streamActive;
   let streamForcedState = options.streaming;
@@ -334,19 +376,10 @@ function initialize(env, context, specifiedOptions, platform, extraOptionDefs) {
 
   function variationDetailInternal(key, defaultValue, sendEvent, includeReasonInEvent, isAllFlags, notifyInspection) {
     let detail;
-    let flag;
 
-    // Check for override first
-    if (
-      flagOverrides &&
-      utils.objectHasOwnProperty(flagOverrides, key) &&
-      flagOverrides[key] &&
-      !flagOverrides[key].deleted
-    ) {
-      flag = flagOverrides[key];
-      detail = getFlagDetail(flag);
-    } else if (flags && utils.objectHasOwnProperty(flags, key) && flags[key] && !flags[key].deleted) {
-      flag = flags[key];
+    const flag = flagStore.get(key);
+
+    if (flag) {
       detail = getFlagDetail(flag);
       if (flag.value === null || flag.value === undefined) {
         detail.value = defaultValue;
@@ -388,21 +421,10 @@ function initialize(env, context, specifiedOptions, platform, extraOptionDefs) {
   function allFlags() {
     const results = {};
 
-    if (!flags) {
-      return results;
-    }
+    const allFlags = flagStore.getAll();
 
-    for (const key in flags) {
-      if (utils.objectHasOwnProperty(flags, key) && !flags[key].deleted) {
-        results[key] = variationDetailInternal(
-          key,
-          null,
-          !options.sendEventsOnlyForVariation,
-          false,
-          true,
-          false
-        ).value;
-      }
+    for (const key in allFlags) {
+      results[key] = variationDetailInternal(key, null, !options.sendEventsOnlyForVariation, false, true, false).value;
     }
 
     return results;
@@ -927,6 +949,7 @@ function initialize(env, context, specifiedOptions, platform, extraOptionDefs) {
 
     mods[data.key] = { previous: currentValue, current: newDetail };
 
+    // Do we need this?
     notifyInspectionFlagChanged(data, newFlag);
     handleFlagChanges(mods); // don't wait for this Promise to be resolved
   }
