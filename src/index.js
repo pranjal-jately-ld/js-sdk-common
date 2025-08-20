@@ -89,12 +89,7 @@ function initialize(env, context, specifiedOptions, platform, extraOptionDefs) {
   const flagStore = {
     get(key) {
       // Check overrides first, then real flags
-      if (
-        flagOverrides &&
-        utils.objectHasOwnProperty(flagOverrides, key) &&
-        flagOverrides[key] &&
-        !flagOverrides[key].deleted
-      ) {
+      if (flagOverrides && utils.objectHasOwnProperty(flagOverrides, key) && flagOverrides[key]) {
         return flagOverrides[key];
       }
 
@@ -951,9 +946,8 @@ function initialize(env, context, specifiedOptions, platform, extraOptionDefs) {
       const oldOverride = flagOverrides[key];
       const realFlag = flags[key];
 
-      if (oldOverride && !oldOverride.deleted) {
-        mods[key] = { previous: oldOverride.value, current: realFlag ? getFlagDetail(realFlag) : undefined };
-      }
+      // Always create change event since we're removing an override
+      mods[key] = { previous: oldOverride.value, current: realFlag ? getFlagDetail(realFlag) : undefined };
 
       delete flagOverrides[key]; // Remove the override
       notifyInspectionFlagChanged({ key }, realFlag);
@@ -967,9 +961,7 @@ function initialize(env, context, specifiedOptions, platform, extraOptionDefs) {
       const oldOverride = flagOverrides[key];
       const realFlag = flags[key];
 
-      if (oldOverride && !oldOverride.deleted) {
-        mods[key] = { previous: oldOverride.value, current: realFlag ? getFlagDetail(realFlag) : undefined };
-      }
+      mods[key] = { previous: oldOverride.value, current: realFlag ? getFlagDetail(realFlag) : undefined };
     });
 
     flagOverrides = {}; // Clear all overrides
@@ -983,7 +975,7 @@ function initialize(env, context, specifiedOptions, platform, extraOptionDefs) {
     const result = {};
     Object.keys(flagOverrides).forEach(key => {
       const override = flagOverrides[key];
-      if (override && !override.deleted) {
+      if (override) {
         result[key] = override.value;
       }
     });
