@@ -396,6 +396,16 @@ declare module 'launchdarkly-js-sdk-common' {
      * Clear all override values, reverting all flags to their real values.
      */
     clearAllOverrides(): void;
+
+    /**
+     * Get all currently active flag overrides.
+     *
+     * @returns
+     *   An object containing all active overrides as key-value pairs,
+     *   where keys are flag keys and values are the overridden flag values.
+     *   Returns an empty object if no overrides are active.
+     */
+    getAllOverrides(): LDFlagSet;
   }
 
   /**
