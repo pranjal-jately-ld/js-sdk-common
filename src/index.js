@@ -917,26 +917,12 @@ function initialize(env, context, specifiedOptions, platform, extraOptionDefs) {
 
   registerPlugins(logger, pluginEnvironment, client, plugins);
 
-  function getCurrentFlagValue(key) {
-    const currentOverride = flagOverrides[key];
-    if (currentOverride) {
-      return currentOverride.value;
-    }
-    const currentFlag = flags[key];
-    if (currentFlag) {
-      return currentFlag.value;
-    }
-    return undefined;
-  }
-
   function setOverride(key, value) {
     const data = { key, value };
     const mods = {};
 
-    // Get the current effective value (either override or real flag)
-    const currentValue = getCurrentFlagValue(key);
+    const currentValue = flagStore.get(key);
 
-    // Check if we're actually changing the value
     if (currentValue === value) {
       logger.debug(`setOverride: No change needed for ${key}, value already ${value}`);
       return;
