@@ -21,11 +21,19 @@ const createTestHook = (name = 'Test Hook') => ({
 });
 
 // Define a basic Plugin structure for tests
-const createTestPlugin = (name = 'Test Plugin', hooks = []) => ({
-  getMetadata: jest.fn().mockReturnValue({ name }),
-  register: jest.fn(),
-  getHooks: jest.fn().mockReturnValue(hooks),
-});
+const createTestPlugin = (name = 'Test Plugin', hooks = [], includeDebug = false) => {
+  const plugin = {
+    getMetadata: jest.fn().mockReturnValue({ name }),
+    register: jest.fn(),
+    getHooks: jest.fn().mockReturnValue(hooks),
+  };
+
+  if (includeDebug) {
+    plugin.registerDebug = jest.fn();
+  }
+
+  return plugin;
+};
 
 // Helper to initialize the client for tests
 async function withClient(initialContext, configOverrides = {}, plugins = [], testFn) {
@@ -209,6 +217,56 @@ it('passes correct environmentMetadata without optional fields', async () => {
           clientSideId: 'env',
         }
       );
+    }
+  );
+});
+
+it('registers plugins and calls registerDebug when a plugin implements it', async () => {
+  const mockPlugin = createTestPlugin('test-plugin', [], true);
+
+  await withClient({ key: 'user-key', kind: 'user' }, {}, [mockPlugin], async () => {
+    expect(mockPlugin.register).toHaveBeenCalled();
+
+    // Verify that registerDebug was called
+    expect(mockPlugin.registerDebug).toHaveBeenCalledTimes(1);
+  });
+});
+
+it('registers plugins but does not call registerDebug when a plugin does not implement it', async () => {
+  const mockPlugin = createTestPlugin('test-plugin', [], false);
+
+  await withClient({ key: 'user-key', kind: 'user' }, {}, [mockPlugin], async () => {
+    expect(mockPlugin.register).toHaveBeenCalled();
+
+    // Verify that registerDebug was not called
+    expect(mockPlugin.registerDebug).toBeUndefined();
+  });
+});
+
+it('registers multiple plugins and calls registerDebug selectively', async () => {
+  const mockPluginWithDebug1 = createTestPlugin('test-plugin-with-debug-1', [], true);
+  const mockPluginWithDebug2 = createTestPlugin('test-plugin-with-debug-2', [], true);
+  const mockPluginWithoutDebug1 = createTestPlugin('test-plugin-without-debug-1', [], false);
+  const mockPluginWithoutDebug2 = createTestPlugin('test-plugin-without-debug-2', [], false);
+
+  await withClient(
+    { key: 'user-key', kind: 'user' },
+    {},
+    [mockPluginWithDebug1, mockPluginWithoutDebug1, mockPluginWithDebug2, mockPluginWithoutDebug2],
+    async () => {
+      // Verify all plugins were registered
+      expect(mockPluginWithDebug1.register).toHaveBeenCalled();
+      expect(mockPluginWithDebug2.register).toHaveBeenCalled();
+      expect(mockPluginWithoutDebug1.register).toHaveBeenCalled();
+      expect(mockPluginWithoutDebug2.register).toHaveBeenCalled();
+
+      // Verify that registerDebug was called only on plugins that implement it
+      expect(mockPluginWithDebug1.registerDebug).toHaveBeenCalledTimes(1);
+      expect(mockPluginWithDebug2.registerDebug).toHaveBeenCalledTimes(1);
+
+      // Verify that registerDebug was not called on plugins that don't implement it
+      expect(mockPluginWithoutDebug1.registerDebug).toBeUndefined();
+      expect(mockPluginWithoutDebug2.registerDebug).toBeUndefined();
     }
   );
 });

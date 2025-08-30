@@ -38,7 +38,6 @@ const highTimeoutThreshold = 5;
 // For definitions of the API in the platform object, see stubPlatform.js in the test code.
 
 function initialize(env, context, specifiedOptions, platform, extraOptionDefs) {
-  console.log('🟢 LOCAL JS-SDK-COMMON v5.7.1 - LINKED VERSION ACTIVE 🟢');
   const logger = createLogger();
   const emitter = EventEmitter(logger);
   const initializationStateTracker = InitializationStateTracker(emitter);
@@ -111,10 +110,6 @@ function initialize(env, context, specifiedOptions, platform, extraOptionDefs) {
         }
       });
       return result;
-    },
-
-    exists(key) {
-      return this.get(key) !== null;
     },
   };
 
