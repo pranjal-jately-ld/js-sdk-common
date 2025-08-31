@@ -1,3 +1,4 @@
+
 // This file exists only so that we can run the TypeScript compiler in the CI build
 // to validate our typings.d.ts file.
 
@@ -17,14 +18,14 @@ var user: ld.LDContext = {
   country: 'us',
   anonymous: true,
   custom: {
-    a: 's',
-    b: true,
-    c: 3,
-    d: ['x', 'y'],
-    e: [true, false],
-    f: [1, 2],
+    'a': 's',
+    'b': true,
+    'c': 3,
+    'd': [ 'x', 'y' ],
+    'e': [ true, false ],
+    'f': [ 1, 2 ]
   },
-  privateAttributeNames: ['name', 'email'],
+  privateAttributeNames: [ 'name', 'email' ]
 };
 const hook: ld.Hook = {
   getMetadata: () => ({
@@ -34,34 +35,27 @@ const hook: ld.Hook = {
   beforeEvaluation(hookContext: ld.EvaluationSeriesContext, data: ld.EvaluationSeriesData): ld.EvaluationSeriesData {
     return data;
   },
-  afterEvaluation(
-    hookContext: ld.EvaluationSeriesContext,
-    data: ld.EvaluationSeriesData,
-    detail: ld.LDEvaluationDetail
-  ): ld.EvaluationSeriesData {
+  afterEvaluation(hookContext: ld.EvaluationSeriesContext, data: ld.EvaluationSeriesData, detail: ld.LDEvaluationDetail): ld.EvaluationSeriesData {
     return data;
   },
   beforeIdentify(hookContext: ld.IdentifySeriesContext, data: ld.IdentifySeriesData): ld.IdentifySeriesData {
     return data;
   },
-  afterIdentify(
-    hookContext: ld.IdentifySeriesContext,
-    data: ld.IdentifySeriesData,
-    result: ld.IdentifySeriesResult
-  ): ld.IdentifySeriesData {
+  afterIdentify(hookContext: ld.IdentifySeriesContext, data: ld.IdentifySeriesData, result: ld.IdentifySeriesResult): ld.IdentifySeriesData {
     return data;
   },
 
-  afterTrack(hookContext: ld.TrackSeriesContext): void {},
+  afterTrack(hookContext: ld.TrackSeriesContext): void {
+  }
 };
 
 const plugin: ld.LDPlugin = {
   getMetadata: () => ({
     name: 'plugin',
   }),
-  register(client: ld.LDClientBase, environmentMetadata: ld.LDPluginEnvironmentMetadata): void {},
+  register(client: ld.LDClientBase, environmentMetadata: ld.LDPluginEnvironmentMetadata): void {
+  },
   registerDebug(debugOverride: ld.LDDebugOverride): void {},
-
   getHooks(metadata: ld.LDPluginEnvironmentMetadata): ld.Hook[] {
     return [];
   },
@@ -69,31 +63,31 @@ const plugin: ld.LDPlugin = {
 
 var logger: ld.LDLogger = ld.commonBasicLogger({ level: 'info' });
 var allBaseOptions: ld.LDOptionsBase = {
-  bootstrap: {},
+  bootstrap: { },
   baseUrl: '',
   eventsUrl: '',
   streamUrl: '',
   streaming: true,
   useReport: true,
   sendLDHeaders: true,
-  requestHeaderTransform: x => x,
+  requestHeaderTransform: (x) => x,
   evaluationReasons: true,
   sendEvents: true,
   allAttributesPrivate: true,
-  privateAttributes: ['x'],
+  privateAttributes: [ 'x' ],
   sendEventsOnlyForVariation: true,
   flushInterval: 1,
   streamReconnectDelay: 1,
   logger: logger,
   application: {
     version: 'version',
-    id: 'id',
+    id: 'id'
   },
-  hooks: [hook],
-  plugins: [plugin],
+  hooks: [ hook ],
+  plugins: [ plugin ]
 };
 
-var client: ld.LDClientBase = {} as ld.LDClientBase; // wouldn't do this in real life, it's just so the following statements will compile
+var client: ld.LDClientBase = {} as ld.LDClientBase;  // wouldn't do this in real life, it's just so the following statements will compile
 
 client.waitUntilReady().then(() => {});
 client.waitForInitialization(5).then(() => {});
@@ -110,7 +104,7 @@ client.flush().then(() => {});
 var boolFlagValue: ld.LDFlagValue = client.variation('key', false);
 var numberFlagValue: ld.LDFlagValue = client.variation('key', 2);
 var stringFlagValue: ld.LDFlagValue = client.variation('key', 'default');
-var jsonFlagValue: ld.LDFlagValue = client.variation('key', ['a', 'b']);
+var jsonFlagValue: ld.LDFlagValue = client.variation('key', [ 'a', 'b' ]);
 
 var detail: ld.LDEvaluationDetail = client.variationDetail('key', 'default');
 var detailValue: ld.LDFlagValue = detail.value;
