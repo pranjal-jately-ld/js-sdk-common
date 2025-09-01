@@ -411,6 +411,10 @@ function initialize(env, context, specifiedOptions, platform, extraOptionDefs) {
 
     const allFlags = flagStore.getAll();
 
+    if (!allFlags) {
+      return results;
+    }
+
     for (const key in allFlags) {
       results[key] = variationDetailInternal(key, null, !options.sendEventsOnlyForVariation, false, true, false).value;
     }
