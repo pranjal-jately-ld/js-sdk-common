@@ -18,6 +18,7 @@ const { checkContext, getContextKeys } = require('./context');
 const { InspectorTypes, InspectorManager } = require('./InspectorManager');
 const timedPromise = require('./timedPromise');
 const createHookRunner = require('./HookRunner');
+const FlagStore = require('./FlagStore');
 const {
   getPluginHooks,
   registerPlugins,
@@ -81,48 +82,7 @@ function initialize(env, context, specifiedOptions, platform, extraOptionDefs) {
 
   const requestor = Requestor(platform, options, environment);
 
-  let flags = {};
-  let flagOverrides;
-
-  // Central flag store facade - single source of truth for all flag access
-  const flagStore = {
-    get(key) {
-      // Check overrides first, then real flags
-      if (flagOverrides && utils.objectHasOwnProperty(flagOverrides, key) && flagOverrides[key]) {
-        return flagOverrides[key];
-      }
-
-      if (flags && utils.objectHasOwnProperty(flags, key) && flags[key] && !flags[key].deleted) {
-        return flags[key];
-      }
-
-      return null;
-    },
-
-    getAll() {
-      const result = {};
-
-      // Add all flags first
-      for (const key in flags) {
-        const flag = this.get(key);
-        if (flag) {
-          result[key] = flag;
-        }
-      }
-
-      // Override with any flagOverrides (they take precedence)
-      if (flagOverrides) {
-        for (const key in flagOverrides) {
-          const override = this.get(key);
-          if (override) {
-            result[key] = override;
-          }
-        }
-      }
-
-      return result;
-    },
-  };
+  const flagStore = FlagStore();
 
   let useLocalStorage;
   let streamActive;
@@ -235,7 +195,7 @@ function initialize(env, context, specifiedOptions, platform, extraOptionDefs) {
   function notifyInspectionFlagsChanged() {
     if (inspectorManager.hasListeners(InspectorTypes.flagDetailsChanged)) {
       inspectorManager.onFlags(
-        Object.entries(flags)
+        Object.entries(flagStore.getFlagsWithOverrides())
           .map(([key, value]) => ({ key, detail: getFlagDetail(value) }))
           .reduce((acc, cur) => {
             // eslint-disable-next-line no-param-reassign
@@ -279,7 +239,7 @@ function initialize(env, context, specifiedOptions, platform, extraOptionDefs) {
       default: defaultValue,
       creationDate: now.getTime(),
     };
-    const flag = flags[key];
+    const flag = flagStore.getFlags()[key];
     if (flag) {
       event.version = flag.flagVersion ? flag.flagVersion : flag.version;
       event.trackEvents = flag.trackEvents;
@@ -309,7 +269,10 @@ function initialize(env, context, specifiedOptions, platform, extraOptionDefs) {
     if (stateProvider) {
       // We're being controlled by another client instance, so only that instance is allowed to change the context
       logger.warn(messages.identifyDisabled());
-      return utils.wrapPromiseCallback(Promise.resolve(utils.transformVersionedValuesToValues(flags)), onDone);
+      return utils.wrapPromiseCallback(
+        Promise.resolve(utils.transformVersionedValuesToValues(flagStore.getFlagsWithOverrides())),
+        onDone
+      );
     }
     let afterIdentify;
     const clearFirst = useLocalStorage && persistentFlagStore ? persistentFlagStore.clearFlags() : Promise.resolve();
@@ -420,7 +383,7 @@ function initialize(env, context, specifiedOptions, platform, extraOptionDefs) {
   function allFlags() {
     const results = {};
 
-    const allFlags = flagStore.getAll();
+    const allFlags = flagStore.getFlagsWithOverrides();
 
     if (!allFlags) {
       return results;
@@ -525,6 +488,7 @@ function initialize(env, context, specifiedOptions, platform, extraOptionDefs) {
         // If both the flag and the patch have a version property, then the patch version must be
         // greater than the flag version for us to accept the patch.  If either one has no version
         // then the patch always succeeds.
+        const flags = flagStore.getFlags();
         const oldFlag = flags[data.key];
         if (!oldFlag || !oldFlag.version || !data.version || oldFlag.version < data.version) {
           logger.debug(messages.debugStreamPatch(data.key));
@@ -532,6 +496,7 @@ function initialize(env, context, specifiedOptions, platform, extraOptionDefs) {
           const newFlag = utils.extend({}, data);
           delete newFlag['key'];
           flags[data.key] = newFlag;
+          flagStore.setFlags(flags);
           const newDetail = getFlagDetail(newFlag);
           if (oldFlag) {
             mods[data.key] = { previous: oldFlag.value, current: newDetail };
@@ -549,6 +514,7 @@ function initialize(env, context, specifiedOptions, platform, extraOptionDefs) {
         if (!data) {
           return;
         }
+        const flags = flagStore.getFlags();
         if (!flags[data.key] || flags[data.key].version < data.version) {
           logger.debug(messages.debugStreamDelete(data.key));
           const mods = {};
@@ -556,6 +522,7 @@ function initialize(env, context, specifiedOptions, platform, extraOptionDefs) {
             mods[data.key] = { previous: flags[data.key].value };
           }
           flags[data.key] = { version: data.version, deleted: true };
+          flagStore.setFlags(flags);
           notifyInspectionFlagChanged(data, flags[data.key]);
           handleFlagChanges(mods); // don't wait for this Promise to be resolved
         } else {
@@ -582,6 +549,7 @@ function initialize(env, context, specifiedOptions, platform, extraOptionDefs) {
       return Promise.resolve();
     }
 
+    const flags = flagStore.getFlags();
     for (const key in flags) {
       if (utils.objectHasOwnProperty(flags, key) && flags[key]) {
         if (newFlags[key] && !utils.deepEquals(newFlags[key].value, flags[key].value)) {
@@ -597,7 +565,7 @@ function initialize(env, context, specifiedOptions, platform, extraOptionDefs) {
       }
     }
 
-    flags = { ...newFlags };
+    flagStore.setFlags({ ...newFlags });
 
     notifyInspectionFlagsChanged();
 
@@ -620,7 +588,7 @@ function initialize(env, context, specifiedOptions, platform, extraOptionDefs) {
       });
 
       emitter.emit(changeEvent, changeEventParams);
-      emitter.emit(internalChangeEvent, flags);
+      emitter.emit(internalChangeEvent, flagStore.getFlagsWithOverrides());
 
       // By default, we send feature evaluation events whenever we have received new flag values -
       // the client has in effect evaluated these flags just by receiving them. This can be suppressed
@@ -635,7 +603,7 @@ function initialize(env, context, specifiedOptions, platform, extraOptionDefs) {
     }
 
     if (useLocalStorage && persistentFlagStore) {
-      return persistentFlagStore.saveFlags(flags);
+      return persistentFlagStore.saveFlags(flagStore.getFlags());
     } else {
       return Promise.resolve();
     }
@@ -706,7 +674,7 @@ function initialize(env, context, specifiedOptions, platform, extraOptionDefs) {
   if (typeof options.bootstrap === 'object') {
     // Set the flags as soon as possible before we get into any async code, so application code can read
     // them even if the ready event has not yet fired.
-    flags = readFlagsFromBootstrap(options.bootstrap);
+    flagStore.setFlags(readFlagsFromBootstrap(options.bootstrap));
   }
 
   if (stateProvider) {
@@ -758,7 +726,7 @@ function initialize(env, context, specifiedOptions, platform, extraOptionDefs) {
   function finishInitWithLocalStorage() {
     return persistentFlagStore.loadFlags().then(storedFlags => {
       if (storedFlags === null || storedFlags === undefined) {
-        flags = {};
+        flagStore.setFlags({});
         return requestor
           .fetchFlagSettings(ident.getContext(), hash)
           .then(requestedFlags => replaceAllFlags(requestedFlags || {}))
@@ -771,7 +739,7 @@ function initialize(env, context, specifiedOptions, platform, extraOptionDefs) {
         // We're reading the flags from local storage. Signal that we're ready,
         // then update localStorage for the next page load. We won't signal changes or update
         // the in-memory flags unless you subscribe for changes
-        flags = storedFlags;
+        flagStore.setFlags(storedFlags);
         utils.onNextTick(signalSuccessfulInit);
 
         return requestor
@@ -786,14 +754,14 @@ function initialize(env, context, specifiedOptions, platform, extraOptionDefs) {
     return requestor
       .fetchFlagSettings(ident.getContext(), hash)
       .then(requestedFlags => {
-        flags = requestedFlags || {};
+        flagStore.setFlags(requestedFlags || {});
 
         notifyInspectionFlagsChanged();
         // Note, we don't need to call updateSettings here because local storage and change events are not relevant
         signalSuccessfulInit();
       })
       .catch(err => {
-        flags = {};
+        flagStore.setFlags({});
         signalFailedInit(err);
       });
   }
@@ -801,7 +769,7 @@ function initialize(env, context, specifiedOptions, platform, extraOptionDefs) {
   function initFromStateProvider(state) {
     environment = state.environment;
     ident.setContext(state.context);
-    flags = { ...state.flags };
+    flagStore.setFlags({ ...state.flags });
     utils.onNextTick(signalSuccessfulInit);
   }
 
@@ -840,7 +808,7 @@ function initialize(env, context, specifiedOptions, platform, extraOptionDefs) {
     }
     const finishClose = () => {
       closed = true;
-      flags = {};
+      flagStore.setFlags({});
     };
     const p = Promise.resolve()
       .then(() => {
@@ -860,7 +828,7 @@ function initialize(env, context, specifiedOptions, platform, extraOptionDefs) {
 
   function getFlagsInternal() {
     // used by Electron integration
-    return flags;
+    return flagStore.getFlagsWithOverrides();
   }
 
   function waitForInitializationWithTimeout(timeout) {
@@ -931,11 +899,8 @@ function initialize(env, context, specifiedOptions, platform, extraOptionDefs) {
       return;
     }
 
-    const newFlag = { value };
-    if (!flagOverrides) {
-      flagOverrides = {};
-    }
-    flagOverrides[key] = newFlag;
+    flagStore.setOverride(key, value);
+    const newFlag = flagStore.get(key);
     const newDetail = getFlagDetail(newFlag);
 
     mods[key] = { previous: currentValue, current: newDetail };
@@ -945,33 +910,31 @@ function initialize(env, context, specifiedOptions, platform, extraOptionDefs) {
   }
 
   function removeOverride(key) {
-    if (!flagOverrides || !flagOverrides[key]) {
+    const flagOverrides = flagStore.getFlagOverrides();
+    if (!flagOverrides[key]) {
       return; // No override to remove
     }
 
     const mods = {};
     const oldOverride = flagOverrides[key];
+    const flags = flagStore.getFlags();
     const realFlag = flags[key];
 
     mods[key] = { previous: oldOverride.value, current: realFlag ? getFlagDetail(realFlag) : undefined };
 
-    delete flagOverrides[key];
-
-    // If no more overrides, reset to undefined
-    if (Object.keys(flagOverrides).length === 0) {
-      flagOverrides = undefined;
-    }
-
+    flagStore.removeOverride(key);
     notifyInspectionFlagChanged({ key }, realFlag);
     handleFlagChanges(mods); // don't wait for this Promise to be resolved
   }
 
   function clearAllOverrides() {
-    if (!flagOverrides) {
+    const flagOverrides = flagStore.getFlagOverrides();
+    if (Object.keys(flagOverrides).length === 0) {
       return; // No overrides to clear
     }
 
     const mods = {};
+    const flags = flagStore.getFlags();
     Object.keys(flagOverrides).forEach(key => {
       const oldOverride = flagOverrides[key];
       const realFlag = flags[key];
@@ -979,7 +942,7 @@ function initialize(env, context, specifiedOptions, platform, extraOptionDefs) {
       mods[key] = { previous: oldOverride.value, current: realFlag ? getFlagDetail(realFlag) : undefined };
     });
 
-    flagOverrides = undefined; // Reset to undefined instead of empty object
+    flagStore.clearAllOverrides();
 
     if (Object.keys(mods).length > 0) {
       handleFlagChanges(mods); // don't wait for this Promise to be resolved
@@ -987,6 +950,8 @@ function initialize(env, context, specifiedOptions, platform, extraOptionDefs) {
   }
 
   function getAllOverrides() {
+    const flagOverrides = flagStore.getFlagOverrides();
+
     if (!flagOverrides) {
       return {}; // No overrides set
     }
