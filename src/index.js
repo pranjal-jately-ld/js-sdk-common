@@ -82,7 +82,7 @@ function initialize(env, context, specifiedOptions, platform, extraOptionDefs) {
   const requestor = Requestor(platform, options, environment);
 
   let flags = {};
-  let flagOverrides = {};
+  let flagOverrides;
 
   // Central flag store facade - single source of truth for all flag access
   const flagStore = {
@@ -100,15 +100,26 @@ function initialize(env, context, specifiedOptions, platform, extraOptionDefs) {
     },
 
     getAll() {
-      const allKeys = new Set([...Object.keys(flags || {}), ...Object.keys(flagOverrides || {})]);
-
       const result = {};
-      allKeys.forEach(key => {
+
+      // Add all flags first
+      for (const key in flags) {
         const flag = this.get(key);
         if (flag) {
           result[key] = flag;
         }
-      });
+      }
+
+      // Override with any flagOverrides (they take precedence)
+      if (flagOverrides) {
+        for (const key in flagOverrides) {
+          const override = this.get(key);
+          if (override) {
+            result[key] = override;
+          }
+        }
+      }
+
       return result;
     },
   };
@@ -910,42 +921,56 @@ function initialize(env, context, specifiedOptions, platform, extraOptionDefs) {
   registerPlugins(logger, pluginEnvironment, client, plugins);
 
   function setOverride(key, value) {
-    const data = { key, value };
     const mods = {};
 
-    const currentValue = flagStore.get(key);
+    const currentFlag = flagStore.get(key);
+    const currentValue = currentFlag ? currentFlag.value : null;
 
     if (currentValue === value) {
       logger.debug(`setOverride: No change needed for ${key}, value already ${value}`);
       return;
     }
 
-    const newFlag = utils.extend({}, data);
-    delete newFlag['key'];
-    flagOverrides[data.key] = newFlag;
+    const newFlag = { value };
+    if (!flagOverrides) {
+      flagOverrides = {};
+    }
+    flagOverrides[key] = newFlag;
     const newDetail = getFlagDetail(newFlag);
 
-    mods[data.key] = { previous: currentValue, current: newDetail };
+    mods[key] = { previous: currentValue, current: newDetail };
 
-    notifyInspectionFlagChanged(data, newFlag);
+    notifyInspectionFlagChanged({ key }, newFlag);
     handleFlagChanges(mods);
   }
 
   function removeOverride(key) {
-    if (flagOverrides[key]) {
-      const mods = {};
-      const oldOverride = flagOverrides[key];
-      const realFlag = flags[key];
-
-      mods[key] = { previous: oldOverride.value, current: realFlag ? getFlagDetail(realFlag) : undefined };
-
-      delete flagOverrides[key];
-      notifyInspectionFlagChanged({ key }, realFlag);
-      handleFlagChanges(mods); // don't wait for this Promise to be resolved
+    if (!flagOverrides || !flagOverrides[key]) {
+      return; // No override to remove
     }
+
+    const mods = {};
+    const oldOverride = flagOverrides[key];
+    const realFlag = flags[key];
+
+    mods[key] = { previous: oldOverride.value, current: realFlag ? getFlagDetail(realFlag) : undefined };
+
+    delete flagOverrides[key];
+
+    // If no more overrides, reset to undefined
+    if (Object.keys(flagOverrides).length === 0) {
+      flagOverrides = undefined;
+    }
+
+    notifyInspectionFlagChanged({ key }, realFlag);
+    handleFlagChanges(mods); // don't wait for this Promise to be resolved
   }
 
   function clearAllOverrides() {
+    if (!flagOverrides) {
+      return; // No overrides to clear
+    }
+
     const mods = {};
     Object.keys(flagOverrides).forEach(key => {
       const oldOverride = flagOverrides[key];
@@ -954,7 +979,7 @@ function initialize(env, context, specifiedOptions, platform, extraOptionDefs) {
       mods[key] = { previous: oldOverride.value, current: realFlag ? getFlagDetail(realFlag) : undefined };
     });
 
-    flagOverrides = {};
+    flagOverrides = undefined; // Reset to undefined instead of empty object
 
     if (Object.keys(mods).length > 0) {
       handleFlagChanges(mods); // don't wait for this Promise to be resolved
@@ -962,6 +987,10 @@ function initialize(env, context, specifiedOptions, platform, extraOptionDefs) {
   }
 
   function getAllOverrides() {
+    if (!flagOverrides) {
+      return {}; // No overrides set
+    }
+
     const result = {};
     Object.keys(flagOverrides).forEach(key => {
       const override = flagOverrides[key];
