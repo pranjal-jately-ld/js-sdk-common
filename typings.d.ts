@@ -150,6 +150,72 @@ declare module 'launchdarkly-js-sdk-common' {
   }
 
   /**
+   * Contextual information provided to event enqueue stages.
+   */
+  export interface EventEnqueueContext {
+    /**
+     * The kind of event being enqueued.
+     */
+    readonly kind: string;
+    /**
+     * The key associated with the event (for feature and custom events).
+     */
+    readonly key?: string;
+    /**
+     * The context associated with the event.
+     */
+    readonly context: LDContext;
+    /**
+     * The creation timestamp of the event.
+     */
+    readonly creationDate: number;
+    /**
+     * Additional data associated with the event (for custom events).
+     */
+    readonly data?: unknown;
+    /**
+     * The metric value associated with the event (for custom events).
+     */
+    readonly metricValue?: number;
+    /**
+     * The flag value (for feature events).
+     */
+    readonly value?: LDFlagValue;
+    /**
+     * The variation index (for feature events).
+     */
+    readonly variation?: number;
+    /**
+     * The default value (for feature events).
+     */
+    readonly default?: LDFlagValue;
+    /**
+     * The flag version (for feature events).
+     */
+    readonly version?: number;
+    /**
+     * Whether to track events for this flag (for feature events).
+     */
+    readonly trackEvents?: boolean;
+    /**
+     * Debug events until date (for feature events).
+     */
+    readonly debugEventsUntilDate?: number;
+    /**
+     * The evaluation reason (for feature events).
+     */
+    readonly reason?: LDEvaluationReason;
+    /**
+     * The URL associated with the event (for custom events).
+     */
+    readonly url?: string;
+    /**
+     * The context kind (for legacy user events).
+     */
+    readonly contextKind?: string;
+  }
+
+  /**
    * Interface for extending SDK functionality via hooks.
    */
   export interface Hook {
@@ -247,6 +313,14 @@ declare module 'launchdarkly-js-sdk-common' {
      *  mutable.
      */
     afterTrack?(hookContext: TrackSeriesContext): void;
+
+    /**
+     * This method is called after an event has been enqueued for sending to LaunchDarkly.
+     *
+     * @param hookContext Contains information about the event that was enqueued. This is not
+     *  mutable.
+     */
+    afterEventEnqueue?(hookContext: EventEnqueueContext): void;
   }
 
   /**
@@ -1123,13 +1197,13 @@ export interface LDDebugOverride {
      * Changing the current context also causes all feature flag values to be reloaded. Until that has
      * finished, calls to {@link variation} will still return flag values for the previous context. You can
      * use a callback or a Promise to determine when the new flag values are available.
-     * 
-     * It is possible that the identify call will fail. In that case, when using a callback, the callback will receive 
-     * an error value. While the SDK will continue to function, the developer will need to be aware that 
-     * calls to {@link variation} will still return flag values for the previous context. 
-     * 
-     * When using a promise, it is important that you handle the rejection case; 
-     * otherwise it will become an unhandled Promise rejection, which is a serious error on some platforms. 
+     *
+     * It is possible that the identify call will fail. In that case, when using a callback, the callback will receive
+     * an error value. While the SDK will continue to function, the developer will need to be aware that
+     * calls to {@link variation} will still return flag values for the previous context.
+     *
+     * When using a promise, it is important that you handle the rejection case;
+     * otherwise it will become an unhandled Promise rejection, which is a serious error on some platforms.
      *
      * @param context
      *   The context properties. Must contain at least the `key` property.
