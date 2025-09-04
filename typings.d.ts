@@ -368,6 +368,9 @@ export interface LDPlugin {
    * This method allows plugins to receive a debug override interface for
    * temporarily overriding flag values during development and testing.
    *
+   * @experimental This interface is experimental and intended for use by LaunchDarkly tools at this time.
+   * The API may change in future versions.
+   *
    * @param debugOverride The debug override interface instance
    */
   registerDebug?(debugOverride: LDDebugOverride): void;
@@ -378,6 +381,9 @@ export interface LDPlugin {
  * This interface provides methods to temporarily override flag values that take
  * precedence over the actual flag values from LaunchDarkly. These overrides are
  * useful for testing, development, and debugging scenarios.
+ *
+ * @experimental This interface is experimental and intended for use by LaunchDarkly tools at this time.
+ * The API may change in future versions.
  */
 export interface LDDebugOverride {
   /**
