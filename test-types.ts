@@ -55,7 +55,7 @@ const plugin: ld.LDPlugin = {
   }),
   register(client: ld.LDClientBase, environmentMetadata: ld.LDPluginEnvironmentMetadata): void {
   },
-
+  registerDebug(debugOverride: ld.LDDebugOverride): void {},
   getHooks(metadata: ld.LDPluginEnvironmentMetadata): ld.Hook[] {
     return [];
   },
